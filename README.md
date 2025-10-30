@@ -9,7 +9,7 @@
 
 It combines:
 - **JSON compatibility** (round-trip safe)
-- **Human readability** (no quotes on keys/values when safe)
+- **Token-dense** (no quotes on keys/values when safe)
 - **Compact size** (up to **60% smaller than JSON**)
 - **Strict validation** (strict mode)
 - **Full ServiceNow integration** (Script Includes, REST, Client Scripts)
