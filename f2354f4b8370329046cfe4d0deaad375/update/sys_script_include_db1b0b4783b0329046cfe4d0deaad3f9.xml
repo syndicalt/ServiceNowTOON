@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonScanner</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonScanner</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonScanner – Line scanner and cursor for Toon format
+ * @requires ToonConstants
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * ToonScanner
+ * @global
+ * @type {Object}
+ */
+var ToonScanner = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+
+    // --------------------------------------------------------------------
+    // LineCursor – manages iteration over parsed lines
+    // --------------------------------------------------------------------
+
+    /**
+     * LineCursor constructor
+     *
+     * @constructor
+     * @param {ParsedLine[]} lines - Array of parsed lines
+     * @param {BlankLineInfo[]} [blankLines=[]] - Array of blank line info
+     */
+    function LineCursor(lines, blankLines) {
+        this.lines = lines || [];
+        this.index = 0;
+        this.blankLines = blankLines || [];
+    }
+
+    LineCursor.prototype = {
+        /**
+         * @returns {BlankLineInfo[]}
+         */
+        getBlankLines: function () {
+            return this.blankLines;
+        },
+
+        /**
+         * @returns {ParsedLine|undefined}
+         */
+        peek: function () {
+            return this.lines[this.index];
+        },
+
+        /**
+         * @returns {ParsedLine|undefined}
+         */
+        next: function () {
+            return this.lines[this.index++];
+        },
+
+        /**
+         * @returns {ParsedLine|undefined}
+         */
+        current: function () {
+            return this.index > 0 ? this.lines[this.index - 1] : undefined;
+        },
+
+        /**
+         * Advance cursor by one line
+         */
+        advance: function () {
+            this.index++;
+        },
+
+        /**
+         * @returns {boolean}
+         */
+        atEnd: function () {
+            return this.index >= this.lines.length;
+        },
+
+        /**
+         * @returns {number}
+         */
+        get length() {
+            return this.lines.length;
+        },
+
+        /**
+         * Peek at line only if it's exactly at target depth
+         *
+         * @param {number} targetDepth
+         * @returns {ParsedLine|undefined}
+         */
+        peekAtDepth: function (targetDepth) {
+            var line = this.peek();
+            if (!line || line.depth < targetDepth) return undefined;
+            if (line.depth === targetDepth) return line;
+            return undefined;
+        },
+
+        /**
+         * @param {number} targetDepth
+         * @returns {boolean}
+         */
+        hasMoreAtDepth: function (targetDepth) {
+            return this.peekAtDepth(targetDepth) !== undefined;
+        }
+    };
+
+    // --------------------------------------------------------------------
+    // Public scanning function
+    // --------------------------------------------------------------------
+
+    /**
+     * Converts raw source into parsed lines and tracks blank lines
+     *
+     * @param {string} source - Raw Toon text
+     * @param {number} indentSize - Number of spaces per indent level
+     * @param {boolean} strict - Enforce indentation rules
+     * @returns {{lines: ParsedLine[], blankLines: BlankLineInfo[]}}
+     * @throws {Error} In strict mode if tabs or invalid indent found
+     */
+    function toParsedLines(source, indentSize, strict) {
+        if (!source.trim()) {
+            return { lines: [], blankLines: [] };
+        }
+
+        var lines = source.split('\n');
+        var parsed = [];
+        var blankLines = [];
+
+        for (var i = 0; i < lines.length; i++) {
+            var raw = lines[i];
+            var lineNumber = i + 1;
+            var indent = 0;
+
+            // Count leading spaces
+            while (indent < raw.length && raw[indent] === C.SPACE) {
+                indent++;
+            }
+
+            var content = raw.slice(indent);
+
+            // Track blank lines
+            if (!content.trim()) {
+                var depth = computeDepthFromIndent(indent, indentSize);
+                blankLines.push({ lineNumber: lineNumber, indent: indent, depth: depth });
+                continue;
+            }
+
+            var depth = computeDepthFromIndent(indent, indentSize);
+
+            // Strict mode: validate indentation
+            if (strict) {
+                // Find full leading whitespace (spaces + tabs)
+                var wsEnd = 0;
+                while (wsEnd < raw.length && (raw[wsEnd] === C.SPACE || raw[wsEnd] === C.TAB)) {
+                    wsEnd++;
+                }
+
+                // Disallow tabs in indentation
+                if (raw.slice(0, wsEnd).includes(C.TAB)) {
+                    throw new Error('Line ' + lineNumber + ': Tabs are not allowed in indentation in strict mode');
+                }
+
+                // Must be exact multiple of indentSize
+                if (indent > 0 && indent % indentSize !== 0) {
+                    throw new Error('Line ' + lineNumber + ': Indentation must be exact multiple of ' + indentSize + ', but found ' + indent + ' spaces');
+                }
+            }
+
+            parsed.push({
+                raw: raw,
+                indent: indent,
+                content: content,
+                depth: depth,
+                lineNumber: lineNumber
+            });
+        }
+
+        return { lines: parsed, blankLines: blankLines };
+    }
+
+    /**
+     * Compute nesting depth from indent spaces
+     *
+     * @param {number} indentSpaces
+     * @param {number} indentSize
+     * @returns {number}
+     * @private
+     */
+    function computeDepthFromIndent(indentSpaces, indentSize) {
+        return Math.floor(indentSpaces / indentSize);
+    }
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        LineCursor: LineCursor,
+        toParsedLines: toParsedLines
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:17:44</sys_created_on>
+        <sys_id>db1b0b4783b0329046cfe4d0deaad3f9</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonScanner</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_db1b0b4783b0329046cfe4d0deaad3f9</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:17:44</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>db1b0b4783b0329046cfe4d0deaad3f9</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:17:44</sys_created_on>
+        <sys_id>7f2bc38783b0329046cfe4d0deaad342</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:17:44</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

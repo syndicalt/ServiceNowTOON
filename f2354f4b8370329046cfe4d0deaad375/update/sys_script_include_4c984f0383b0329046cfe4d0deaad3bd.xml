@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>package_private</access>
+        <active>true</active>
+        <api_name>global.ToonStringUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonStringUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonStringUtils – String escaping utilities for Toon JSON encoder/decoder
+ * @requires ToonConstants
+ */
+
+/**
+ * ToonStringUtils
+ * @global
+ * @type {Object}
+ */
+var ToonStringUtils = (function () {
+    'use strict';
+
+    // Pull in constants from the companion Script Include
+    var C = ToonConstants;
+
+    /**
+     * Escapes special characters in a string for encoding.
+     *
+     * @remarks
+     * Handles backslashes, quotes, newlines, carriage returns, and tabs.
+     *
+     * @param {string} value - The string to escape
+     * @returns {string} Escaped string
+     */
+    function escapeString(value) {
+        return value
+            .replace(/\\/g, C.BACKSLASH + C.BACKSLASH)
+            .replace(/"/g, C.BACKSLASH + C.DOUBLE_QUOTE)
+            .replace(/\n/g, C.BACKSLASH + 'n')
+            .replace(/\r/g, C.BACKSLASH + 'r')
+            .replace(/\t/g, C.BACKSLASH + 't');
+    }
+
+    /**
+     * Unescapes a string by processing escape sequences.
+     *
+     * @remarks
+     * Handles `\n`, `\t`, `\r`, `\\`, and `\"` escape sequences.
+     *
+     * @param {string} value - The string to unescape
+     * @returns {string} Unescaped string
+     * @throws {Error} If an invalid escape sequence is encountered
+     */
+    function unescapeString(value) {
+        var result = '';
+        var i = 0;
+        while (i < value.length) {
+            if (value[i] === C.BACKSLASH) {
+                if (i + 1 >= value.length) {
+                    throw new Error('Invalid escape sequence: backslash at end of string');
+                }
+                var next = value[i + 1];
+                if (next === 'n') {
+                    result += C.NEWLINE;
+                    i += 2;
+                    continue;
+                }
+                if (next === 't') {
+                    result += C.TAB;
+                    i += 2;
+                    continue;
+                }
+                if (next === 'r') {
+                    result += C.CARRIAGE_RETURN;
+                    i += 2;
+                    continue;
+                }
+                if (next === C.BACKSLASH) {
+                    result += C.BACKSLASH;
+                    i += 2;
+                    continue;
+                }
+                if (next === C.DOUBLE_QUOTE) {
+                    result += C.DOUBLE_QUOTE;
+                    i += 2;
+                    continue;
+                }
+                throw new Error('Invalid escape sequence: \\' + next);
+            }
+            result += value[i];
+            i++;
+        }
+        return result;
+    }
+
+    /**
+     * Finds the index of the closing double quote in a string, accounting for escape sequences.
+     *
+     * @param {string} content - The string to search in
+     * @param {number} start - The index of the opening quote
+     * @returns {number} The index of the closing quote, or -1 if not found
+     */
+    function findClosingQuote(content, start) {
+        var i = start + 1;
+        while (i < content.length) {
+            if (content[i] === C.BACKSLASH && i + 1 < content.length) {
+                // Skip escaped character
+                i += 2;
+                continue;
+            }
+            if (content[i] === C.DOUBLE_QUOTE) {
+                return i;
+            }
+            i++;
+        }
+        return -1; // Not found
+    }
+
+    /**
+     * Finds the index of a specific character outside of quoted sections.
+     *
+     * @param {string} content - The string to search in
+     * @param {string} char - The character to look for (single char)
+     * @param {number} [start=0] - Optional starting index
+     * @returns {number} The index of the character, or -1 if not found outside quotes
+     */
+    function findUnquotedChar(content, char, start) {
+        start = start || 0;
+        var inQuotes = false;
+        var i = start;
+        while (i < content.length) {
+            if (content[i] === C.BACKSLASH && i + 1 < content.length && inQuotes) {
+                // Skip escaped character
+                i += 2;
+                continue;
+            }
+            if (content[i] === C.DOUBLE_QUOTE) {
+                inQuotes = !inQuotes;
+                i++;
+                continue;
+            }
+            if (content[i] === char && !inQuotes) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
+    }
+
+
+    // --------------------------------------------------------------------
+    // Public API – expose all functions on the returned object
+    // --------------------------------------------------------------------
+    return {
+        escapeString: escapeString,
+        unescapeString: unescapeString,
+        findClosingQuote: findClosingQuote,
+        findUnquotedChar: findUnquotedChar
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:08:06</sys_created_on>
+        <sys_id>4c984f0383b0329046cfe4d0deaad3bd</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonStringUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_4c984f0383b0329046cfe4d0deaad3bd</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:08:06</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>4c984f0383b0329046cfe4d0deaad3bd</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:08:05</sys_created_on>
+        <sys_id>2af8874f8370329046cfe4d0deaad3ff</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:08:05</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

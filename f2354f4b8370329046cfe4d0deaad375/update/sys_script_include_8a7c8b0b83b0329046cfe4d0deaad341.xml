@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonWriter</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonWriter</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonWriter – LineWriter for Toon encoder
+ * @description Place this Script Include in *System Definition > Script Includes*
+ *              and set **Client callable** = false, **Application** = Global.
+ * @requires ToonConstants
+ */
+
+/**
+ * ToonWriter
+ * @global
+ * @type {Object}
+ */
+var ToonWriter = (function () {
+    'use strict';
+
+    // Dependency
+    var C = ToonConstants;
+
+    // --------------------------------------------------------------------
+    // LineWriter – builds indented Toon output line-by-line
+    // --------------------------------------------------------------------
+
+    /**
+     * LineWriter constructor
+     *
+     * @constructor
+     * @param {number} indentSize - Number of spaces per indentation level
+     */
+    function LineWriter(indentSize) {
+        this.lines = [];
+        this.indentationString = _repeat(' ', indentSize);
+    }
+
+    LineWriter.prototype = {
+
+        /**
+         * Adds a line at the given depth
+         *
+         * @param {number} depth - Nesting depth
+         * @param {string} content - Line content (without indent)
+         */
+        push: function (depth, content) {
+            var indent = _repeat(this.indentationString, depth);
+            this.lines.push(indent + content);
+        },
+
+        /**
+         * Adds a list item line (`- ` prefix)
+         *
+         * @param {number} depth - Nesting depth
+         * @param {string} content - Content after `- `
+         */
+        pushListItem: function (depth, content) {
+            this.push(depth, C.LIST_ITEM_PREFIX + content);
+        },
+
+        /**
+         * Returns the full Toon string
+         *
+         * @returns {string}
+         */
+        toString: function () {
+            return this.lines.join('\n');
+        }
+    };
+
+    /**
+     * Repeats a string n times (polyfill for String.repeat)
+     *
+     * @param {string} str - String to repeat
+     * @param {number} times - Number of repetitions
+     * @returns {string}
+     * @private
+     */
+    function _repeat(str, times) {
+        if (times <= 0) return '';
+        var result = '';
+        for (var i = 0; i < times; i++) {
+            result += str;
+        }
+        return result;
+    }
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        LineWriter: LineWriter
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:23:32</sys_created_on>
+        <sys_id>8a7c8b0b83b0329046cfe4d0deaad341</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonWriter</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_8a7c8b0b83b0329046cfe4d0deaad341</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:23:32</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>8a7c8b0b83b0329046cfe4d0deaad341</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:23:32</sys_created_on>
+        <sys_id>fc8c47c783b0329046cfe4d0deaad398</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:23:32</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonClientBridge</api_name>
+        <caller_access/>
+        <client_callable>true</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonClientBridge</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonClientBridge – Client-side AJAX bridge for Toon JSON encoder/decoder
+ * @description Allows client scripts to call Toon.encode() and Toon.decode() via AJAX.
+ *              Place in *System Definition > Script Includes*
+ *              Set **Client callable** = true
+ *              **Application** = Global
+ * @requires Toon
+ */
+var ToonClientBridge = Class.create();
+ToonClientBridge.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+    /**
+     * Encodes any JSON-serializable input to Toon format
+     *
+     * @param {string} input - JSON string to encode (e.g., JSON.stringify(obj))
+     * @param {number} [indent=2] - Spaces per indentation level
+     * @param {string} [delimiter=','] - Field delimiter (comma, tab, pipe)
+     * @param {string} [lengthMarker] - '#' to prefix array lengths, or empty
+     * @returns {string} Toon-formatted string
+     *
+     * @example
+     * var response = new GlideAjax('ToonClientBridge');
+     * response.addParam('sysparm_name', 'encode');
+     * response.addParam('sysparm_input', JSON.stringify({users: [...]}));
+     * response.addParam('sysparm_indent', '4');
+     * response.addParam('sysparm_delimiter', '|');
+     * response.addParam('sysparm_lengthMarker', '#');
+     * response.getXMLWait();
+     * var toon = response.getValue();
+     */
+    encode: function () {
+        try {
+            const inputStr = this.getParameter('sysparm_input');
+            if (!inputStr) {
+                return this._createResponse(400, 'Missing required parameter: sysparm_input');
+            }
+
+            let input;
+            try {
+                input = JSON.parse(inputStr);
+            } catch (e) {
+                return this._createResponse('Invalid JSON in sysparm_input: ' + e.message);
+            }
+
+            let indent = parseInt(this.getParameter('sysparm_indent'), 10) || 2;
+            if (isNaN(indent) || indent < 0) indent = 2;
+
+            const delimiter = this.getParameter('sysparm_delimiter') || ',';
+            const lengthMarker = this.getParameter('sysparm_lengthMarker') || '';
+
+            const options = {
+                indent: indent,
+                delimiter: delimiter,
+                lengthMarker: lengthMarker === '#' ? '#' : false
+            };
+
+            const toon = new Toon();
+            const result = toon.encode(input, options);
+
+            return this._createResponse(200, result);
+        } catch (e) {
+            return this._createResponse(400, 'Encode failed: ' + e.message);
+        }
+    },
+
+    /**
+     * Decodes Toon-formatted string back to JSON
+     *
+     * @param {string} input - Toon string to decode
+     * @param {number} [indent=2] - Expected indent size
+     * @param {string} [strict=true] - 'true' or 'false' for strict mode
+     * @returns {string} JSON string (use JSON.parse() client-side)
+     *
+     * @example
+     * var response = new GlideAjax('ToonClientBridge');
+     * response.addParam('sysparm_name', 'decode');
+     * response.addParam('sysparm_input', toonString);
+     * response.addParam('sysparm_indent', '2');
+     * response.addParam('sysparm_strict', 'false');
+     * response.getXMLWait();
+     * var jsonStr = response.getValue();
+     * var obj = JSON.parse(jsonStr);
+     */
+    decode: function () {
+        try {
+            const input = this.getParameter('sysparm_input');
+            if (!input) {
+                return this._createResponse(400, 'Missing required parameter: sysparm_input');
+            }
+
+            let indent = parseInt(this.getParameter('sysparm_indent'), 10) || 2;
+            if (isNaN(indent) || indent < 0) indent = 2;
+
+            const strictParam = this.getParameter('sysparm_strict');
+            const strict = strictParam !== 'false'; // default true
+
+            const options = {
+                indent: indent,
+                strict: strict
+            };
+
+            const toon = new Toon();
+            const result = toon.decode(input, options);
+
+            // Return as JSON string so client can safely parse
+            return this._createResponse(200, result);
+        } catch (e) {
+            return this._createResponse(400, 'Decode failed: ' + e.message);
+        }
+    },
+
+    /**
+     * Returns available operations for discovery
+     *
+     * @returns {string} JSON list of methods
+     */
+    getOperations: function () {
+        return JSON.stringify(['encode', 'decode']);
+    },
+
+    /**
+     * Internal error formatter
+     * @private
+     */
+    _createResponse: function (status, message) {
+        if(status === 400) gs.error('[ToonClientBridge] Error: ' + message);
+        return JSON.stringify({ status: status, message: message });
+    },
+
+    type: 'ToonClientBridge'
+});]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-30 00:24:25</sys_created_on>
+        <sys_id>ba26a78383f0329046cfe4d0deaad386</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonClientBridge</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_ba26a78383f0329046cfe4d0deaad386</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-30 00:24:25</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>ba26a78383f0329046cfe4d0deaad386</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-30 00:24:25</sys_created_on>
+        <sys_id>a728af4383b4329046cfe4d0deaad355</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-30 00:24:25</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

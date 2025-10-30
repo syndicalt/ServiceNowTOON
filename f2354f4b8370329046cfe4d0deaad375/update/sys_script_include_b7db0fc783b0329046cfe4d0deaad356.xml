@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonNormalizeUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonNormalizeUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonNormalizeUtils – Normalization & type guards for unknown → JsonValue
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * ToonNormalizeUtils
+ * @global
+ * @type {Object}
+ */
+var ToonNormalizeUtils = (function () {
+    'use strict';
+
+    // #region Normalization (unknown → JsonValue)
+
+    /**
+     * Normalizes any unknown value into a valid JsonValue
+     *
+     * @param {*} value - Any input value
+     * @returns {string|number|boolean|null|Object|Array} Valid JSON value
+     */
+    function normalizeValue(value) {
+        // null
+        if (value === null) {
+            return null;
+        }
+
+        var type = typeof value;
+
+        // Primitives
+        if (type === 'string' || type === 'boolean') {
+            return value;
+        }
+
+        // Numbers: canonicalize -0 → 0, reject NaN/Infinity
+        if (type === 'number') {
+            if (value === 0 && (1 / value) < 0) { // -0 check
+                return 0;
+            }
+            if (!isFinite(value)) {
+                return null;
+            }
+            return value;
+        }
+
+        // BigInt → number (if safe) or string
+        if (type === 'bigint') {
+            if (value >= Number.MIN_SAFE_INTEGER && value <= Number.MAX_SAFE_INTEGER) {
+                return Number(value);
+            }
+            return value.toString();
+        }
+
+        // Date → ISO string
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+
+        // Array
+        if (Array.isArray(value)) {
+            return value.map(normalizeValue);
+        }
+
+        // Set → array
+        if (value instanceof Set) {
+            return Array.from(value).map(normalizeValue);
+        }
+
+        // Map → object
+        if (value instanceof Map) {
+            var obj = {};
+            value.forEach(function (v, k) {
+                obj[String(k)] = normalizeValue(v);
+            });
+            return obj;
+        }
+
+        // Plain object
+        if (isPlainObject(value)) {
+            var result = {};
+            for (var key in value) {
+                if (Object.prototype.hasOwnProperty.call(value, key)) {
+                    result[key] = normalizeValue(value[key]);
+                }
+            }
+            return result;
+        }
+
+        // Fallback: function, symbol, undefined, etc. → null
+        return null;
+    }
+
+    // #endregion
+
+    // #region Type guards
+
+    /**
+     * Type guard: is value a JsonPrimitive?
+     *
+     * @param {*} value
+     * @returns {boolean}
+     */
+    function isJsonPrimitive(value) {
+        return (
+            value === null ||
+            typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean'
+        );
+    }
+
+    /**
+     * Type guard: is value a JsonArray?
+     *
+     * @param {*} value
+     * @returns {boolean}
+     */
+    function isJsonArray(value) {
+        return Array.isArray(value);
+    }
+
+    /**
+     * Type guard: is value a JsonObject?
+     *
+     * @param {*} value
+     * @returns {boolean}
+     */
+    function isJsonObject(value) {
+        return value !== null && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    /**
+     * Type guard: is value a plain object (not null, not array, prototype is Object or null)?
+     *
+     * @param {*} value
+     * @returns {boolean}
+     */
+    function isPlainObject(value) {
+        if (value === null || typeof value !== 'object') {
+            return false;
+        }
+        var proto = Object.getPrototypeOf(value);
+        return proto === null || proto === Object.prototype;
+    }
+
+    // #endregion
+
+    // #region Array type detection
+
+    /**
+     * Checks if array contains only primitives
+     *
+     * @param {Array} value - JsonArray
+     * @returns {boolean}
+     */
+    function isArrayOfPrimitives(value) {
+        return value.every(isJsonPrimitive);
+    }
+
+    /**
+     * Checks if array contains only arrays
+     *
+     * @param {Array} value - JsonArray
+     * @returns {boolean}
+     */
+    function isArrayOfArrays(value) {
+        return value.every(isJsonArray);
+    }
+
+    /**
+     * Checks if array contains only objects
+     *
+     * @param {Array} value - JsonArray
+     * @returns {boolean}
+     */
+    function isArrayOfObjects(value) {
+        return value.every(isJsonObject);
+    }
+
+    // #endregion
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        normalizeValue: normalizeValue,
+
+        isJsonPrimitive: isJsonPrimitive,
+        isJsonArray: isJsonArray,
+        isJsonObject: isJsonObject,
+        isPlainObject: isPlainObject,
+
+        isArrayOfPrimitives: isArrayOfPrimitives,
+        isArrayOfArrays: isArrayOfArrays,
+        isArrayOfObjects: isArrayOfObjects
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:21:02</sys_created_on>
+        <sys_id>b7db0fc783b0329046cfe4d0deaad356</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonNormalizeUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_b7db0fc783b0329046cfe4d0deaad356</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:21:02</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>b7db0fc783b0329046cfe4d0deaad356</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:21:02</sys_created_on>
+        <sys_id>d8fb0fc783b0329046cfe4d0deaad3a9</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:21:02</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

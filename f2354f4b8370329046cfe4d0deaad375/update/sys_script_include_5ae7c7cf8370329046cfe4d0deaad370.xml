@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonConstants</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonConstants</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonConstants – Core constants for the Toon JSON encoder/decoder
+ */
+
+/**
+ * ToonConstants
+ * @global
+ * @type {Object}
+ */
+var ToonConstants = (function () {
+    'use strict';
+
+    // #region List markers
+    var LIST_ITEM_MARKER = '-';
+    var LIST_ITEM_PREFIX = '- ';
+    // #endregion
+
+    // #region Structural characters
+    var COMMA = ',';
+    var COLON = ':';
+    var SPACE = ' ';
+    var PIPE = '|';
+    var HASH = '#';
+    // #endregion
+
+    // #region Brackets and braces
+    var OPEN_BRACKET = '[';
+    var CLOSE_BRACKET = ']';
+    var OPEN_BRACE = '{';
+    var CLOSE_BRACE = '}';
+    // #endregion
+
+    // #region Literals
+    var NULL_LITERAL = 'null';
+    var TRUE_LITERAL = 'true';
+    var FALSE_LITERAL = 'false';
+    // #endregion
+
+    // #region Escape characters
+    var BACKSLASH = '\\';
+    var DOUBLE_QUOTE = '"';
+    var NEWLINE = '\n';
+    var CARRIAGE_RETURN = '\r';
+    var TAB = '\t';
+    // #endregion
+
+    // #region Delimiters
+    var DELIMITERS = Object.freeze({
+        comma: COMMA,
+        tab: TAB,
+        pipe: PIPE
+    });
+
+    /**
+     * @typedef {'comma'|'tab'|'pipe'} DelimiterKey
+     */
+
+    /**
+     * @typedef {','|'\t'|'|'} Delimiter
+     */
+
+    var DEFAULT_DELIMITER = DELIMITERS.comma;
+    // #endregion
+
+
+    // --------------------------------------------------------------------
+    // Public API – expose all constants on the returned object
+    // --------------------------------------------------------------------
+    return Object.freeze({
+        LIST_ITEM_MARKER: LIST_ITEM_MARKER,
+        LIST_ITEM_PREFIX: LIST_ITEM_PREFIX,
+
+        COMMA: COMMA,
+        COLON: COLON,
+        SPACE: SPACE,
+        PIPE: PIPE,
+        HASH: HASH,
+
+        OPEN_BRACKET: OPEN_BRACKET,
+        CLOSE_BRACKET: CLOSE_BRACKET,
+        OPEN_BRACE: OPEN_BRACE,
+        CLOSE_BRACE: CLOSE_BRACE,
+
+        NULL_LITERAL: NULL_LITERAL,
+        TRUE_LITERAL: TRUE_LITERAL,
+        FALSE_LITERAL: FALSE_LITERAL,
+
+        BACKSLASH: BACKSLASH,
+        DOUBLE_QUOTE: DOUBLE_QUOTE,
+        NEWLINE: NEWLINE,
+        CARRIAGE_RETURN: CARRIAGE_RETURN,
+        TAB: TAB,
+
+        DELIMITERS: DELIMITERS,
+        DEFAULT_DELIMITER: DEFAULT_DELIMITER,
+
+        // Export types via JSDoc (no runtime value needed)
+        DelimiterKey: true,
+        Delimiter: true
+    });
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:03:44</sys_created_on>
+        <sys_id>5ae7c7cf8370329046cfe4d0deaad370</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>ToonConstants</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_5ae7c7cf8370329046cfe4d0deaad370</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:04:08</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>5ae7c7cf8370329046cfe4d0deaad370</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:03:44</sys_created_on>
+        <sys_id>faf7c7cf8370329046cfe4d0deaad37a</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:03:44</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

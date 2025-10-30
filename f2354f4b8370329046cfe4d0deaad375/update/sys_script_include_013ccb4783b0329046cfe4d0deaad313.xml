@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonPrimitiveUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonPrimitiveUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonPrimitiveUtils – Primitive encoding & header formatting
+ * @requires ToonConstants
+ * @requires ToonStringUtils
+ * @requires ToonKeyValueUtils
+ */
+
+/**
+ * ToonPrimitiveUtils
+ * @global
+ * @type {Object}
+ */
+var ToonPrimitiveUtils = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+    var S = ToonStringUtils;
+    var V = ToonKeyValueUtils;
+
+    // #region Primitive encoding
+
+    /**
+     * Encodes a JsonPrimitive to Toon string
+     *
+     * @param {string|number|boolean|null} value - Primitive value
+     * @param {string} [delimiter] - Optional delimiter (defaults to comma)
+     * @returns {string}
+     */
+    function encodePrimitive(value, delimiter) {
+        if (value === null) {
+            return C.NULL_LITERAL;
+        }
+        if (typeof value === 'boolean') {
+            return String(value);
+        }
+        if (typeof value === 'number') {
+            return String(value);
+        }
+        return encodeStringLiteral(value, delimiter);
+    }
+
+    /**
+     * Encodes a string, quoting only if needed
+     *
+     * @param {string} value - String to encode
+     * @param {string} [delimiter=COMMA] - Active delimiter
+     * @returns {string}
+     */
+    function encodeStringLiteral(value, delimiter) {
+        delimiter = delimiter || C.COMMA;
+        if (V.isSafeUnquoted(value, delimiter)) {
+            return value;
+        }
+        return C.DOUBLE_QUOTE + S.escapeString(value) + C.DOUBLE_QUOTE;
+    }
+
+    // #endregion
+
+    // #region Key encoding
+
+    /**
+     * Encodes an object key (quoted only if needed)
+     *
+     * @param {string} key - Object key
+     * @returns {string}
+     */
+    function encodeKey(key) {
+        if (V.isValidUnquotedKey(key)) {
+            return key;
+        }
+        return C.DOUBLE_QUOTE + S.escapeString(key) + C.DOUBLE_QUOTE;
+    }
+
+    // #endregion
+
+    // #region Value joining
+
+    /**
+     * Encodes and joins primitives with delimiter
+     *
+     * @param {Array} values - Array of primitives
+     * @param {string} [delimiter=COMMA] - Delimiter to use
+     * @returns {string}
+     */
+    function encodeAndJoinPrimitives(values, delimiter) {
+        delimiter = delimiter || C.COMMA;
+        return values.map(function (v) {
+            return encodePrimitive(v, delimiter);
+        }).join(delimiter);
+    }
+
+    // #endregion
+
+    // #region Header formatters
+
+    /**
+     * Formats array header like `users[5|]:` or `items[#3]: {name, age}`
+     *
+     * @param {number} length - Array length
+     * @param {Object} [options]
+     * @param {string} [options.key] - Optional key
+     * @param {string[]} [options.fields] - Tabular field names
+     * @param {string} [options.delimiter] - Delimiter (default: comma)
+     * @param {'#'|false} [options.lengthMarker] - Use '#' prefix?
+     * @returns {string}
+     */
+    function formatHeader(length, options) {
+        options = options || {};
+        var key = options.key;
+        var fields = options.fields;
+        var delimiter = options.delimiter || C.COMMA;
+        var lengthMarker = options.lengthMarker === '#' ? '#' : '';
+
+        var header = '';
+
+        if (key) {
+            header += encodeKey(key);
+        }
+
+        // Bracket: [#5|] or [3]
+        header += '[' + lengthMarker + length;
+        if (delimiter !== C.DEFAULT_DELIMITER) {
+            header += delimiter;
+        }
+        header += ']';
+
+        if (fields && fields.length > 0) {
+            var quotedFields = fields.map(encodeKey);
+            header += '{' + quotedFields.join(delimiter) + '}';
+        }
+
+        header += ':';
+        return header;
+    }
+
+    // #endregion
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        encodePrimitive: encodePrimitive,
+        encodeStringLiteral: encodeStringLiteral,
+        encodeKey: encodeKey,
+        encodeAndJoinPrimitives: encodeAndJoinPrimitives,
+        formatHeader: formatHeader
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:22:29</sys_created_on>
+        <sys_id>013ccb4783b0329046cfe4d0deaad313</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonPrimitiveUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_013ccb4783b0329046cfe4d0deaad313</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:22:29</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>013ccb4783b0329046cfe4d0deaad313</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:22:29</sys_created_on>
+        <sys_id>1d4cc70b83b0329046cfe4d0deaad383</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:22:29</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

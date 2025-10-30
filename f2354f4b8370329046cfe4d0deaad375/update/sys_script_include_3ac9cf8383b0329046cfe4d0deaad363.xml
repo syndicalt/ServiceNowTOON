@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonKeyValueUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonKeyValueUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonKeyValueUtils – Key & value safety checks for Toon JSON encoder
+ * @requires ToonConstants
+ * @requires ToonTokenUtils
+ */
+
+/**
+ * ToonKeyValueUtils
+ * @global
+ * @type {Object}
+ */
+var ToonKeyValueUtils = (function () {
+    'use strict';
+
+    // Pull in dependencies
+    var C = ToonConstants;
+    var T = ToonTokenUtils;
+
+    /**
+     * Checks if a key can be used without quotes.
+     *
+     * @remarks
+     * Valid unquoted keys must start with a letter or underscore,
+     * followed by letters, digits, underscores, or dots.
+     *
+     * @param {string} key - The key to test
+     * @returns {boolean} true if the key can be used unquoted
+     */
+    function isValidUnquotedKey(key) {
+        return /^[A-Z_][\w.]*$/i.test(key);
+    }
+
+    /**
+     * Determines if a string value can be safely encoded without quotes.
+     *
+     * @remarks
+     * A string needs quoting if it:
+     * - Is empty
+     * - Has leading or trailing whitespace
+     * - Could be confused with a literal (boolean, null, number)
+     * - Contains structural characters (colons, brackets, braces)
+     * - Contains quotes or backslashes (need escaping)
+     * - Contains control characters (newlines, tabs, etc.)
+     * - Contains the active delimiter
+     * - Starts with a list marker (hyphen)
+     *
+     * @param {string} value - The value to test
+     * @param {string} [delimiter=COMMA] - Active field delimiter (default: comma)
+     * @returns {boolean} true if the value can be safely unquoted
+     */
+    function isSafeUnquoted(value, delimiter) {
+        delimiter = delimiter || C.COMMA;
+
+        if (!value) {
+            return false;
+        }
+        if (value !== value.trim()) {
+            return false;
+        }
+
+        // Check if it looks like any literal value (boolean, null, or numeric)
+        if (T.isBooleanOrNullLiteral(value) || isNumericLike(value)) {
+            return false;
+        }
+
+        // Check for colon (always structural)
+        if (value.includes(':')) {
+            return false;
+        }
+
+        // Check for quotes and backslash (always need escaping)
+        if (value.includes('"') || value.includes('\\')) {
+            return false;
+        }
+
+        // Check for brackets and braces (always structural)
+        if (/[[\]{}]/.test(value)) {
+            return false;
+        }
+
+        // Check for control characters (newline, carriage return, tab)
+        if (/[\n\r\t]/.test(value)) {
+            return false;
+        }
+
+        // Check for the active delimiter
+        if (value.includes(delimiter)) {
+            return false;
+        }
+
+        // Check for hyphen at start (list marker)
+        if (value.indexOf(C.LIST_ITEM_MARKER) === 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Checks if a string looks like a number.
+     *
+     * @remarks
+     * Matches numbers like `42`, `-3.14`, `1e-6`, `05`, etc.
+     * Allows leading zero only if not followed by another digit (e.g., `0.5` is OK, `05` is not).
+     *
+     * @param {string} value - The string to test
+     * @returns {boolean} true if the string resembles a number
+     * @private
+     */
+    function isNumericLike(value) {
+        // Full scientific notation or decimal
+        if (/^-?\d+(?:\.\d+)?(?:e[+-]?\d+)?$/i.test(value)) {
+            return true;
+        }
+        // Leading zero followed by digit (e.g., "05") → invalid in strict mode
+        if (/^0\d+$/.test(value)) {
+            return true;
+        }
+        return false;
+    }
+
+
+    // --------------------------------------------------------------------
+    // Public API – expose functions on the returned object
+    // --------------------------------------------------------------------
+    return {
+        isValidUnquotedKey: isValidUnquotedKey,
+        isSafeUnquoted: isSafeUnquoted,
+        isNumericLike: isNumericLike  // optional: expose for testing/reuse
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:11:58</sys_created_on>
+        <sys_id>3ac9cf8383b0329046cfe4d0deaad363</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonKeyValueUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_3ac9cf8383b0329046cfe4d0deaad363</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:11:58</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>3ac9cf8383b0329046cfe4d0deaad363</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:11:58</sys_created_on>
+        <sys_id>53d987c383b0329046cfe4d0deaad330</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:11:58</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

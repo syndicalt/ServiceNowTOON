@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonValidationUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonValidationUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonValidationUtils – Strict-mode validation helpers for Toon decoder
+ * @requires ToonConstants
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * ToonValidationUtils
+ * @global
+ * @type {Object}
+ */
+var ToonValidationUtils = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+
+    // --------------------------------------------------------------------
+    // Public validation functions
+    // --------------------------------------------------------------------
+
+    /**
+     * Asserts that actual count matches expected count in strict mode
+     *
+     * @param {number} actual - Actual count
+     * @param {number} expected - Expected count
+     * @param {string} itemType - Description (e.g., "list array items")
+     * @param {Object} options - ResolvedDecodeOptions
+     * @param {boolean} options.strict - Strict mode enabled?
+     * @throws {Error} If mismatch in strict mode
+     */
+    function assertExpectedCount(actual, expected, itemType, options) {
+        if (options.strict && actual !== expected) {
+            throw new Error('Expected ' + expected + ' ' + itemType + ', but got ' + actual);
+        }
+    }
+
+    /**
+     * Validates no extra list items beyond expected count
+     *
+     * @param {Object} cursor - LineCursor instance
+     * @param {number} itemDepth - Expected depth of list items
+     * @param {number} expectedCount - Expected number of items
+     * @throws {Error} If extra `- ` line found
+     */
+    function validateNoExtraListItems(cursor, itemDepth, expectedCount) {
+        if (cursor.atEnd()) return;
+
+        var nextLine = cursor.peek();
+        if (
+            nextLine &&
+            nextLine.depth === itemDepth &&
+            nextLine.content.indexOf(C.LIST_ITEM_PREFIX) === 0
+        ) {
+            throw new Error('Expected ' + expectedCount + ' list array items, but found more');
+        }
+    }
+
+    /**
+     * Validates no extra tabular rows beyond expected count
+     *
+     * @param {Object} cursor - LineCursor instance
+     * @param {number} rowDepth - Expected depth of rows
+     * @param {Object} header - ArrayHeaderInfo
+     * @param {number} header.length - Expected row count
+     * @param {string} header.delimiter - Row delimiter
+     * @throws {Error} If extra data row found
+     */
+    function validateNoExtraTabularRows(cursor, rowDepth, header) {
+        if (cursor.atEnd()) return;
+
+        var nextLine = cursor.peek();
+        if (
+            nextLine &&
+            nextLine.depth === rowDepth &&
+            nextLine.content.indexOf(C.LIST_ITEM_PREFIX) !== 0 &&
+            isDataRow(nextLine.content, header.delimiter)
+        ) {
+            throw new Error('Expected ' + header.length + ' tabular rows, but found more');
+        }
+    }
+
+    /**
+     * Validates no blank lines inside a line range (strict mode only)
+     *
+     * @param {number} startLine - First line number (inclusive)
+     * @param {number} endLine - Last line number (inclusive)
+     * @param {Array} blankLines - Array of BlankLineInfo
+     * @param {boolean} strict - Strict mode enabled?
+     * @param {string} context - e.g., "list array"
+     * @throws {Error} If blank line found in strict mode
+     */
+    function validateNoBlankLinesInRange(startLine, endLine, blankLines, strict, context) {
+        if (!strict) return;
+
+        // Find any blank line strictly between startLine and endLine
+        for (var i = 0; i < blankLines.length; i++) {
+            var blank = blankLines[i];
+            if (blank.lineNumber > startLine && blank.lineNumber < endLine) {
+                throw new Error(
+                    'Line ' + blank.lineNumber + ': Blank lines inside ' + context + ' are not allowed in strict mode'
+                );
+            }
+        }
+    }
+
+    // --------------------------------------------------------------------
+    // Private helper
+    // --------------------------------------------------------------------
+
+    /**
+     * Checks if a line is a tabular data row (not a key-value pair)
+     *
+     * @param {string} content - Line content
+     * @param {string} delimiter - Field delimiter
+     * @returns {boolean}
+     * @private
+     */
+    function isDataRow(content, delimiter) {
+        var colonPos = content.indexOf(C.COLON);
+        var delimiterPos = content.indexOf(delimiter);
+
+        // No colon → data row
+        if (colonPos === -1) return true;
+
+        // Delimiter before colon → data row
+        if (delimiterPos !== -1 && delimiterPos < colonPos) return true;
+
+        // Otherwise → key-value pair
+        return false;
+    }
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        assertExpectedCount: assertExpectedCount,
+        validateNoExtraListItems: validateNoExtraListItems,
+        validateNoExtraTabularRows: validateNoExtraTabularRows,
+        validateNoBlankLinesInRange: validateNoBlankLinesInRange
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:28:21</sys_created_on>
+        <sys_id>e78d034b83b0329046cfe4d0deaad3b1</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonValidationUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_e78d034b83b0329046cfe4d0deaad3b1</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:28:21</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>e78d034b83b0329046cfe4d0deaad3b1</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:28:21</sys_created_on>
+        <sys_id>d79d07cb83b0329046cfe4d0deaad3e1</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:28:21</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

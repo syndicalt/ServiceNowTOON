@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonEncoder</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonEncoder</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonEncoder – Main JSON encoder for Toon format
+ * @requires ToonConstants
+ * @requires ToonNormalizeUtils
+ * @requires ToonPrimitiveUtils
+ * @requires ToonWriter
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * ToonEncoder
+ * @global
+ * @type {Object}
+ */
+var ToonEncoder = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+    var N = ToonNormalizeUtils;
+    var P = ToonPrimitiveUtils;
+    var W = ToonWriter;
+
+    // #region Encode normalized JsonValue
+
+    /**
+     * Encodes any JSON value to Toon format
+     *
+     * @param {string|number|boolean|null|Object|Array} value - JSON value
+     * @param {Object} options - ResolvedEncodeOptions
+     * @param {number} options.indent - Spaces per level
+     * @param {string} options.delimiter - Field delimiter
+     * @param {'#'|false} options.lengthMarker - Prefix length with '#'
+     * @returns {string} Toon-formatted string
+     */
+    function encodeValue(value, options) {
+        if (N.isJsonPrimitive(value)) {
+            return P.encodePrimitive(value, options.delimiter);
+        }
+
+        var writer = new W.LineWriter(options.indent);
+
+        if (N.isJsonArray(value)) {
+            encodeArray(undefined, value, writer, 0, options);
+        } else if (N.isJsonObject(value)) {
+            encodeObject(value, writer, 0, options);
+        }
+
+        return writer.toString();
+    }
+
+    // #endregion
+
+    // #region Object encoding
+
+    /**
+     * Encodes a JSON object
+     *
+     * @param {Object} value - JSON object
+     * @param {LineWriter} writer - Output writer
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeObject(value, writer, depth, options) {
+        var keys = Object.keys(value);
+        for (var i = 0; i < keys.length; i++) {
+            encodeKeyValuePair(keys[i], value[keys[i]], writer, depth, options);
+        }
+    }
+
+    /**
+     * Encodes a key-value pair
+     *
+     * @param {string} key - Property key
+     * @param {*} value - JSON value
+     * @param {LineWriter} writer - Output writer
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeKeyValuePair(key, value, writer, depth, options) {
+        var encodedKey = P.encodeKey(key);
+
+        if (N.isJsonPrimitive(value)) {
+            writer.push(depth, encodedKey + ': ' + P.encodePrimitive(value, options.delimiter));
+        } else if (N.isJsonArray(value)) {
+            encodeArray(key, value, writer, depth, options);
+        } else if (N.isJsonObject(value)) {
+            var nestedKeys = Object.keys(value);
+            if (nestedKeys.length === 0) {
+                writer.push(depth, encodedKey + ':');
+            } else {
+                writer.push(depth, encodedKey + ':');
+                encodeObject(value, writer, depth + 1, options);
+            }
+        }
+    }
+
+    // #endregion
+
+    // #region Array encoding
+
+    /**
+     * Encodes a JSON array
+     *
+     * @param {string|undefined} key - Optional key prefix
+     * @param {Array} value - JSON array
+     * @param {LineWriter} writer - Output writer
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeArray(key, value, writer, depth, options) {
+        if (value.length === 0) {
+            var header = P.formatHeader(0, { key: key, delimiter: options.delimiter, lengthMarker: options.lengthMarker });
+            writer.push(depth, header);
+            return;
+        }
+
+        if (N.isArrayOfPrimitives(value)) {
+            var inline = encodeInlineArrayLine(value, options.delimiter, key, options.lengthMarker);
+            writer.push(depth, inline);
+            return;
+        }
+
+        if (N.isArrayOfArrays(value)) {
+            var allPrimitive = value.every(N.isArrayOfPrimitives);
+            if (allPrimitive) {
+                encodeArrayOfArraysAsListItems(key, value, writer, depth, options);
+                return;
+            }
+        }
+
+        if (N.isArrayOfObjects(value)) {
+            var header = extractTabularHeader(value);
+            if (header) {
+                encodeArrayOfObjectsAsTabular(key, value, header, writer, depth, options);
+            } else {
+                encodeMixedArrayAsListItems(key, value, writer, depth, options);
+            }
+            return;
+        }
+
+        // Fallback: mixed array
+        encodeMixedArrayAsListItems(key, value, writer, depth, options);
+    }
+
+    // #endregion
+
+    // #region Array of arrays (expanded format)
+
+    /**
+     * Encodes array of primitive arrays as list items
+     *
+     * @param {string|undefined} prefix - Key prefix
+     * @param {Array[]} values - Array of primitive arrays
+     * @param {LineWriter} writer - Output writer
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeArrayOfArraysAsListItems(prefix, values, writer, depth, options) {
+        var header = P.formatHeader(values.length, { key: prefix, delimiter: options.delimiter, lengthMarker: options.lengthMarker });
+        writer.push(depth, header);
+        for (var i = 0; i < values.length; i++) {
+            if (N.isArrayOfPrimitives(values[i])) {
+                var inline = encodeInlineArrayLine(values[i], options.delimiter, undefined, options.lengthMarker);
+                writer.pushListItem(depth + 1, inline);
+            }
+        }
+    }
+
+    /**
+     * Formats inline array line: `[3]: 1, 2, 3`
+     *
+     * @param {Array} values - Primitive values
+     * @param {string} delimiter - Field delimiter
+     * @param {string} [prefix] - Optional key
+     * @param {'#'|false} [lengthMarker] - Length marker
+     * @returns {string}
+     */
+    function encodeInlineArrayLine(values, delimiter, prefix, lengthMarker) {
+        var header = P.formatHeader(values.length, { key: prefix, delimiter: delimiter, lengthMarker: lengthMarker });
+        var joined = P.encodeAndJoinPrimitives(values, delimiter);
+        return values.length === 0 ? header : header + ' ' + joined;
+    }
+
+    // #endregion
+
+    // #region Array of objects (tabular format)
+
+    /**
+     * Encodes array of objects in tabular format
+     *
+     * @param {string|undefined} prefix - Key prefix
+     * @param {Object[]} rows - Array of objects
+     * @param {string[]} header - Field names
+     * @param {LineWriter} writer - Output writer
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeArrayOfObjectsAsTabular(prefix, rows, header, writer, depth, options) {
+        var headerStr = P.formatHeader(rows.length, {
+            key: prefix,
+            fields: header,
+            delimiter: options.delimiter,
+            lengthMarker: options.lengthMarker
+        });
+        writer.push(depth, headerStr);
+        writeTabularRows(rows, header, writer, depth + 1, options);
+    }
+
+    /**
+     * Extracts tabular header if all rows have same primitive keys
+     *
+     * @param {Object[]} rows - Array of objects
+     * @returns {string[]|undefined}
+     */
+    function extractTabularHeader(rows) {
+        if (rows.length === 0) return;
+        var firstRow = rows[0];
+        var firstKeys = Object.keys(firstRow);
+        if (firstKeys.length === 0) return;
+        if (isTabularArray(rows, firstKeys)) {
+            return firstKeys;
+        }
+    }
+
+    /**
+     * Checks if array is uniformly tabular
+     *
+     * @param {Object[]} rows - Array of objects
+     * @param {string[]} header - Expected keys
+     * @returns {boolean}
+     */
+    function isTabularArray(rows, header) {
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var keys = Object.keys(row);
+            if (keys.length !== header.length) return false;
+            for (var j = 0; j < header.length; j++) {
+                var key = header[j];
+                if (!(key in row)) return false;
+                if (!N.isJsonPrimitive(row[key])) return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Writes tabular data rows
+     *
+     * @param {Object[]} rows - Data
+     * @param {string[]} header - Field order
+     * @param {LineWriter} writer - Output
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function writeTabularRows(rows, header, writer, depth, options) {
+        for (var i = 0; i < rows.length; i++) {
+            var values = header.map(function (k) { return rows[i][k]; });
+            var joined = P.encodeAndJoinPrimitives(values, options.delimiter);
+            writer.push(depth, joined);
+        }
+    }
+
+    // #endregion
+
+    // #region Array of objects (expanded format)
+
+    /**
+     * Encodes mixed array as list items
+     *
+     * @param {string|undefined} prefix - Key prefix
+     * @param {Array} items - Mixed values
+     * @param {LineWriter} writer - Output
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeMixedArrayAsListItems(prefix, items, writer, depth, options) {
+        var header = P.formatHeader(items.length, { key: prefix, delimiter: options.delimiter, lengthMarker: options.lengthMarker });
+        writer.push(depth, header);
+        for (var i = 0; i < items.length; i++) {
+            encodeListItemValue(items[i], writer, depth + 1, options);
+        }
+    }
+
+    /**
+     * Encodes object as a list item (with possible nested content)
+     *
+     * @param {Object} obj - JSON object
+     * @param {LineWriter} writer - Output
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeObjectAsListItem(obj, writer, depth, options) {
+        var keys = Object.keys(obj);
+        if (keys.length === 0) {
+            writer.push(depth, C.LIST_ITEM_MARKER);
+            return;
+        }
+
+        var firstKey = keys[0];
+        var firstValue = obj[firstKey];
+        var encodedKey = P.encodeKey(firstKey);
+
+        if (N.isJsonPrimitive(firstValue)) {
+            writer.pushListItem(depth, encodedKey + ': ' + P.encodePrimitive(firstValue, options.delimiter));
+        } else if (N.isJsonArray(firstValue)) {
+            if (N.isArrayOfPrimitives(firstValue)) {
+                var inline = encodeInlineArrayLine(firstValue, options.delimiter, firstKey, options.lengthMarker);
+                writer.pushListItem(depth, inline);
+            } else if (N.isArrayOfObjects(firstValue)) {
+                var header = extractTabularHeader(firstValue);
+                if (header) {
+                    var headerStr = P.formatHeader(firstValue.length, {
+                        key: firstKey,
+                        fields: header,
+                        delimiter: options.delimiter,
+                        lengthMarker: options.lengthMarker
+                    });
+                    writer.pushListItem(depth, headerStr);
+                    writeTabularRows(firstValue, header, writer, depth + 1, options);
+                } else {
+                    writer.pushListItem(depth, encodedKey + '[' + firstValue.length + ']:');
+                    for (var i = 0; i < firstValue.length; i++) {
+                        encodeObjectAsListItem(firstValue[i], writer, depth + 1, options);
+                    }
+                }
+            } else {
+                writer.pushListItem(depth, encodedKey + '[' + firstValue.length + ']:');
+                for (var i = 0; i < firstValue.length; i++) {
+                    encodeListItemValue(firstValue[i], writer, depth + 1, options);
+                }
+            }
+        } else if (N.isJsonObject(firstValue)) {
+            var nestedKeys = Object.keys(firstValue);
+            if (nestedKeys.length === 0) {
+                writer.pushListItem(depth, encodedKey + ':');
+            } else {
+                writer.pushListItem(depth, encodedKey + ':');
+                encodeObject(firstValue, writer, depth + 2, options);
+            }
+        }
+
+        // Remaining keys
+        for (var i = 1; i < keys.length; i++) {
+            encodeKeyValuePair(keys[i], obj[keys[i]], writer, depth + 1, options);
+        }
+    }
+
+    // #endregion
+
+    // #region List item encoding helpers
+
+    /**
+     * Encodes a single list item value
+     *
+     * @param {*} value - JSON value
+     * @param {LineWriter} writer - Output
+     * @param {number} depth - Current depth
+     * @param {Object} options - Encode options
+     */
+    function encodeListItemValue(value, writer, depth, options) {
+        if (N.isJsonPrimitive(value)) {
+            writer.pushListItem(depth, P.encodePrimitive(value, options.delimiter));
+        } else if (N.isJsonArray(value) && N.isArrayOfPrimitives(value)) {
+            var inline = encodeInlineArrayLine(value, options.delimiter, undefined, options.lengthMarker);
+            writer.pushListItem(depth, inline);
+        } else if (N.isJsonObject(value)) {
+            encodeObjectAsListItem(value, writer, depth, options);
+        }
+    }
+
+    // #endregion
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        encodeValue: encodeValue,
+        encodeObject: encodeObject,
+        encodeArray: encodeArray,
+        encodeObjectAsListItem: encodeObjectAsListItem
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:19:50</sys_created_on>
+        <sys_id>a89b83c783b0329046cfe4d0deaad311</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonEncoder</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_a89b83c783b0329046cfe4d0deaad311</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:19:50</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>a89b83c783b0329046cfe4d0deaad311</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:19:50</sys_created_on>
+        <sys_id>f6ab0bc383b0329046cfe4d0deaad3a1</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:19:50</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

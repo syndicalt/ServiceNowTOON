@@ -1,0 +1,398 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonDecoder</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonDecoder</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonDecoder – Main JSON decoder for Toon format
+ * @requires ToonConstants
+ * @requires ToonParserUtils
+ * @requires ToonStringUtils
+ * @requires ToonValidationUtils
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * ToonDecoder
+ * @global
+ * @type {Object}
+ */
+var ToonDecoder = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+    var P = ToonParserUtils;
+    var S = ToonStringUtils;
+    var V = ToonValidationUtils;
+
+    // #region Entry decoding
+
+    /**
+     * Decodes a JSON value from a line cursor
+     *
+     * @param {Object} cursor - LineCursor instance
+     * @param {Object} options - ResolvedDecodeOptions
+     * @param {number} options.indent - Indentation spaces
+     * @param {boolean} options.strict - Strict validation
+     * @returns {string|number|boolean|null|Object|Array} Parsed JSON value
+     * @throws {Error} If no content or invalid structure
+     */
+    function decodeValueFromLines(cursor, options) {
+        var first = cursor.peek();
+        if (!first) {
+            throw new Error('No content to decode');
+        }
+
+        // Root array?
+        if (P.isArrayHeaderAfterHyphen(first.content)) {
+            var headerInfo = P.parseArrayHeaderLine(first.content, C.DEFAULT_DELIMITER);
+            if (headerInfo) {
+                cursor.advance();
+                return decodeArrayFromHeader(headerInfo.header, headerInfo.inlineValues, cursor, 0, options);
+            }
+        }
+
+        // Single primitive?
+        if (cursor.length === 1 && !isKeyValueLine(first)) {
+            return P.parsePrimitiveToken(first.content.trim());
+        }
+
+        // Default: object
+        return decodeObject(cursor, 0, options);
+    }
+
+    /**
+     * Checks if a line is a key-value pair
+     *
+     * @param {Object} line - ParsedLine
+     * @returns {boolean}
+     */
+    function isKeyValueLine(line) {
+        var content = line.content;
+
+        if (content.indexOf(C.DOUBLE_QUOTE) === 0) {
+            var closingQuoteIndex = S.findClosingQuote(content, 0);
+            if (closingQuoteIndex === -1) return false;
+            return closingQuoteIndex + 1 < content.length && content[closingQuoteIndex + 1] === C.COLON;
+        } else {
+            return content.includes(C.COLON);
+        }
+    }
+
+    // #endregion
+
+    // #region Object decoding
+
+    /**
+     * Decodes an object from the cursor
+     *
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current nesting depth
+     * @param {Object} options - Decode options
+     * @returns {Object} JSON object
+     */
+    function decodeObject(cursor, baseDepth, options) {
+        var obj = {};
+        while (!cursor.atEnd()) {
+            var line = cursor.peek();
+            if (!line || line.depth < baseDepth) break;
+            if (line.depth === baseDepth) {
+                var pair = decodeKeyValuePair(line, cursor, baseDepth, options);
+                obj[pair[0]] = pair[1];
+            } else {
+                break;
+            }
+        }
+        return obj;
+    }
+
+    /**
+     * Decodes a single key-value pair from a line
+     *
+     * @param {string} content - Line content
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {{key: string, value: *, followDepth: number}}
+     */
+    function decodeKeyValue(content, cursor, baseDepth, options) {
+        var arrayHeader = P.parseArrayHeaderLine(content, C.DEFAULT_DELIMITER);
+        if (arrayHeader && arrayHeader.header.key) {
+            var value = decodeArrayFromHeader(arrayHeader.header, arrayHeader.inlineValues, cursor, baseDepth, options);
+            return {
+                key: arrayHeader.header.key,
+                value: value,
+                followDepth: baseDepth + 1
+            };
+        }
+
+        var parsed = P.parseKeyToken(content, 0);
+        var key = parsed.key;
+        var rest = content.slice(parsed.end).trim();
+
+        if (!rest) {
+            var nextLine = cursor.peek();
+            if (nextLine && nextLine.depth > baseDepth) {
+                var nested = decodeObject(cursor, baseDepth + 1, options);
+                return { key: key, value: nested, followDepth: baseDepth + 1 };
+            }
+            return { key: key, value: {}, followDepth: baseDepth + 1 };
+        }
+
+        var value = P.parsePrimitiveToken(rest);
+        return { key: key, value: value, followDepth: baseDepth + 1 };
+    }
+
+    /**
+     * Decodes a key-value pair from a line and advances cursor
+     *
+     * @param {Object} line - ParsedLine
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {[string, *]} [key, value]
+     */
+    function decodeKeyValuePair(line, cursor, baseDepth, options) {
+        cursor.advance();
+        var result = decodeKeyValue(line.content, cursor, baseDepth, options);
+        return [result.key, result.value];
+    }
+
+    // #endregion
+
+    // #region Array decoding
+
+    /**
+     * Decodes an array from a parsed header
+     *
+     * @param {Object} header - ArrayHeaderInfo
+     * @param {string} [inlineValues] - Inline values after colon
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {Array} JSON array
+     */
+    function decodeArrayFromHeader(header, inlineValues, cursor, baseDepth, options) {
+        if (inlineValues) {
+            return decodeInlinePrimitiveArray(header, inlineValues, options);
+        }
+        if (header.fields && header.fields.length > 0) {
+            return decodeTabularArray(header, cursor, baseDepth, options);
+        }
+        return decodeListArray(header, cursor, baseDepth, options);
+    }
+
+    /**
+     * Decodes inline primitive array like `[3]: 1, 2, 3`
+     *
+     * @param {Object} header - ArrayHeaderInfo
+     * @param {string} inlineValues - Values string
+     * @param {Object} options - Decode options
+     * @returns {Array} Primitive array
+     */
+    function decodeInlinePrimitiveArray(header, inlineValues, options) {
+        if (!inlineValues.trim()) {
+            V.assertExpectedCount(0, header.length, 'inline array items', options);
+            return [];
+        }
+        var values = P.parseDelimitedValues(inlineValues, header.delimiter);
+        var primitives = P.mapRowValuesToPrimitives(values);
+        V.assertExpectedCount(primitives.length, header.length, 'inline array items', options);
+        return primitives;
+    }
+
+    /**
+     * Decodes list-style array with `- ` items
+     *
+     * @param {Object} header - ArrayHeaderInfo
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {Array} JSON array
+     */
+    function decodeListArray(header, cursor, baseDepth, options) {
+        var items = [];
+        var itemDepth = baseDepth + 1;
+        var startLine, endLine;
+
+        while (!cursor.atEnd() && items.length < header.length) {
+            var line = cursor.peek();
+            if (!line || line.depth < itemDepth) break;
+            if (line.depth === itemDepth && line.content.indexOf(C.LIST_ITEM_PREFIX) === 0) {
+                if (startLine === undefined) startLine = line.lineNumber;
+                endLine = line.lineNumber;
+
+                var item = decodeListItem(cursor, itemDepth, header.delimiter, options);
+                items.push(item);
+
+                var current = cursor.current();
+                if (current) endLine = current.lineNumber;
+            } else {
+                break;
+            }
+        }
+
+        V.assertExpectedCount(items.length, header.length, 'list array items', options);
+
+        if (options.strict && startLine !== undefined && endLine !== undefined) {
+            V.validateNoBlankLinesInRange(startLine, endLine, cursor.getBlankLines(), options.strict, 'list array');
+        }
+        if (options.strict) {
+            V.validateNoExtraListItems(cursor, itemDepth, header.length);
+        }
+
+        return items;
+    }
+
+    /**
+     * Decodes tabular array with field headers
+     *
+     * @param {Object} header - ArrayHeaderInfo
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {Array} Array of objects
+     */
+    function decodeTabularArray(header, cursor, baseDepth, options) {
+        var objects = [];
+        var rowDepth = baseDepth + 1;
+        var startLine, endLine;
+
+        while (!cursor.atEnd() && objects.length < header.length) {
+            var line = cursor.peek();
+            if (!line || line.depth < rowDepth) break;
+            if (line.depth === rowDepth) {
+                if (startLine === undefined) startLine = line.lineNumber;
+                endLine = line.lineNumber;
+
+                cursor.advance();
+                var values = P.parseDelimitedValues(line.content, header.delimiter);
+                V.assertExpectedCount(values.length, header.fields.length, 'tabular row values', options);
+                var primitives = P.mapRowValuesToPrimitives(values);
+                var obj = {};
+                for (var i = 0; i < header.fields.length; i++) {
+                    obj[header.fields[i]] = primitives[i];
+                }
+                objects.push(obj);
+            } else {
+                break;
+            }
+        }
+
+        V.assertExpectedCount(objects.length, header.length, 'tabular rows', options);
+
+        if (options.strict && startLine !== undefined && endLine !== undefined) {
+            V.validateNoBlankLinesInRange(startLine, endLine, cursor.getBlankLines(), options.strict, 'tabular array');
+        }
+        if (options.strict) {
+            V.validateNoExtraTabularRows(cursor, rowDepth, header);
+        }
+
+        return objects;
+    }
+
+    // #endregion
+
+    // #region List item decoding
+
+    /**
+     * Decodes a single list item (primitive, array, or object)
+     *
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {string} activeDelimiter - Delimiter
+     * @param {Object} options - Decode options
+     * @returns {*} JSON value
+     */
+    function decodeListItem(cursor, baseDepth, activeDelimiter, options) {
+        var line = cursor.next();
+        if (!line) throw new Error('Expected list item');
+
+        var afterHyphen = line.content.slice(C.LIST_ITEM_PREFIX.length);
+
+        if (P.isArrayHeaderAfterHyphen(afterHyphen)) {
+            var arrayHeader = P.parseArrayHeaderLine(afterHyphen, C.DEFAULT_DELIMITER);
+            if (arrayHeader) {
+                return decodeArrayFromHeader(arrayHeader.header, arrayHeader.inlineValues, cursor, baseDepth, options);
+            }
+        }
+
+        if (P.isObjectFirstFieldAfterHyphen(afterHyphen)) {
+            return decodeObjectFromListItem(line, cursor, baseDepth, options);
+        }
+
+        return P.parsePrimitiveToken(afterHyphen);
+    }
+
+    /**
+     * Decodes an object starting from a list item
+     *
+     * @param {Object} firstLine - First line of object
+     * @param {Object} cursor - LineCursor
+     * @param {number} baseDepth - Current depth
+     * @param {Object} options - Decode options
+     * @returns {Object} JSON object
+     */
+    function decodeObjectFromListItem(firstLine, cursor, baseDepth, options) {
+        var afterHyphen = firstLine.content.slice(C.LIST_ITEM_PREFIX.length);
+        var result = decodeKeyValue(afterHyphen, cursor, baseDepth, options);
+        var obj = {};
+        obj[result.key] = result.value;
+
+        while (!cursor.atEnd()) {
+            var line = cursor.peek();
+            if (!line || line.depth < result.followDepth) break;
+            if (line.depth === result.followDepth && line.content.indexOf(C.LIST_ITEM_PREFIX) !== 0) {
+                var pair = decodeKeyValuePair(line, cursor, result.followDepth, options);
+                obj[pair[0]] = pair[1];
+            } else {
+                break;
+            }
+        }
+        return obj;
+    }
+
+    // #endregion
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        decodeValueFromLines: decodeValueFromLines,
+        decodeObject: decodeObject,
+        decodeArrayFromHeader: decodeArrayFromHeader,
+        decodeListItem: decodeListItem
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:16:08</sys_created_on>
+        <sys_id>52bac34783b0329046cfe4d0deaad3f7</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonDecoder</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_52bac34783b0329046cfe4d0deaad3f7</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:16:08</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>52bac34783b0329046cfe4d0deaad3f7</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:16:08</sys_created_on>
+        <sys_id>a8da474783b0329046cfe4d0deaad352</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:16:08</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

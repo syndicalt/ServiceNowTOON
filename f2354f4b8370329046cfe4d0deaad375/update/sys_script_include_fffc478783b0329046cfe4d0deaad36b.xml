@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.Toon</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>Toon</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file Toon – Public API for Toon JSON encoder/decoder
+ * @description 
+ *              Set **Client callable** = true if needed in client scripts.
+ *              **Application** = Global recommended.
+ * @requires ToonConstants
+ * @requires ToonScanner
+ * @requires ToonDecoder
+ * @requires ToonEncoder
+ * @requires ToonNormalizeUtils
+ * @requires ToonTypeUtils
+ */
+
+/**
+ * Toon – Main interface class
+ * @class
+ * @name Toon
+ */
+var Toon = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+    var Scanner = ToonScanner;
+    var Decoder = ToonDecoder;
+    var Encoder = ToonEncoder;
+    var Norm = ToonNormalizeUtils;
+
+    // --------------------------------------------------------------------
+    // Private helpers
+    // --------------------------------------------------------------------
+
+    /**
+     * Resolves and normalizes encode options
+     * @private
+     */
+    function _resolveEncodeOptions(options) {
+        return {
+            indent: (options && options.indent) || 2,
+            delimiter: (options && options.delimiter) || C.DEFAULT_DELIMITER,
+            lengthMarker: (options && options.lengthMarker === '#') ? '#' : false
+        };
+    }
+
+    /**
+     * Resolves and normalizes decode options
+     * @private
+     */
+    function _resolveDecodeOptions(options) {
+        return {
+            indent: (options && options.indent) || 2,
+            strict: (options && options.strict === false) ? false : true
+        };
+    }
+
+    // --------------------------------------------------------------------
+    // Constructor
+    // --------------------------------------------------------------------
+
+    /**
+     * @constructor
+     */
+    function Toon() {}
+
+    // --------------------------------------------------------------------
+    // Instance methods
+    // --------------------------------------------------------------------
+
+    /**
+     * Encodes any input to Toon format
+     *
+     * @param {*} input - Any value (object, array, primitive, etc.)
+     * @param {Object} [options]
+     * @param {number} [options.indent=2] - Spaces per indent level
+     * @param {string} [options.delimiter=','] - Field delimiter
+     * @param {'#'|false} [options.lengthMarker=false] - Prefix array length with '#'
+     * @returns {string} Toon-formatted string
+     */
+    Toon.prototype.encode = function (input, options) {
+        var normalized = Norm.normalizeValue(input);
+        var resolved = _resolveEncodeOptions(options);
+        return Encoder.encodeValue(normalized, resolved);
+    };
+
+    /**
+     * Decodes Toon string to JSON value
+     *
+     * @param {string} input - Toon-formatted string
+     * @param {Object} [options]
+     * @param {number} [options.indent=2] - Expected indent size
+     * @param {boolean} [options.strict=true] - Enforce strict parsing
+     * @returns {string|number|boolean|null|Object|Array} Parsed JSON value
+     * @throws {TypeError} If input is empty
+     * @throws {Error} If parsing fails
+     */
+    Toon.prototype.decode = function (input, options) {
+        if (typeof input !== 'string') {
+            throw new Error('Toon.decode() expects a string input');
+        }
+        if (!input.trim()) {
+            throw new Error('Cannot decode empty input: input must be a non-empty string');
+        }
+
+        var resolved = _resolveDecodeOptions(options);
+        var scan = Scanner.toParsedLines(input, resolved.indent, resolved.strict);
+        if (scan.lines.length === 0) {
+            throw new Error('Cannot decode empty input: input must contain at least one data line');
+        }
+
+        var cursor = new Scanner.LineCursor(scan.lines, scan.blankLines);
+        return Decoder.decodeValueFromLines(cursor, resolved);
+    };
+
+    // --------------------------------------------------------------------
+    // Static methods (convenience)
+    // --------------------------------------------------------------------
+
+    /**
+     * Static encode
+     * @static
+     */
+    Toon.encode = function (input, options) {
+        return (new Toon()).encode(input, options);
+    };
+
+    /**
+     * Static decode
+     * @static
+     */
+    Toon.decode = function (input, options) {
+        return (new Toon()).decode(input, options);
+    };
+
+    // --------------------------------------------------------------------
+    // Re-export constants and types (via JSDoc)
+    // --------------------------------------------------------------------
+
+    /**
+     * Default delimiter (comma)
+     * @member {string}
+     */
+    Toon.DEFAULT_DELIMITER = C.DEFAULT_DELIMITER;
+
+    /**
+     * Available delimiters
+     * @member {Object}
+     * @property {string} comma
+     * @property {string} tab
+     * @property {string} pipe
+     */
+    Toon.DELIMITERS = C.DELIMITERS;
+
+    // JSDoc type aliases (for Studio autocomplete)
+
+    /**
+     * @typedef {string|number|boolean|null} JsonPrimitive
+     */
+
+    /**
+     * @typedef {Object} JsonObject
+     * @property {*} [key]
+     */
+
+    /**
+     * @typedef {Array} JsonArray
+     */
+
+    /**
+     * @typedef {JsonPrimitive|JsonObject|JsonArray} JsonValue
+     */
+
+    /**
+     * @typedef {Object} EncodeOptions
+     * @property {number} [indent=2]
+     * @property {string} [delimiter]
+     * @property {'#'|false} [lengthMarker=false]
+     */
+
+    /**
+     * @typedef {Object} DecodeOptions
+     * @property {number} [indent=2]
+     * @property {boolean} [strict=true]
+     */
+
+    /**
+     * @typedef {'comma'|'tab'|'pipe'} DelimiterKey
+     */
+
+    /**
+     * @typedef {','|'\t'|'|'} Delimiter
+     */
+
+    // --------------------------------------------------------------------
+    // Return class
+    // --------------------------------------------------------------------
+    return Toon;
+})();
+]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:25:52</sys_created_on>
+        <sys_id>fffc478783b0329046cfe4d0deaad36b</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>Toon</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_fffc478783b0329046cfe4d0deaad36b</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:26:07</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>fffc478783b0329046cfe4d0deaad36b</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:25:52</sys_created_on>
+        <sys_id>4f0d838b83b0329046cfe4d0deaad36a</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:25:52</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>

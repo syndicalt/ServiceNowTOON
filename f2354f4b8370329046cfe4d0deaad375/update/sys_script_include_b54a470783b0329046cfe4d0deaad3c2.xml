@@ -1,0 +1,385 @@
+<?xml version="1.0" encoding="UTF-8"?><record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>global.ToonParserUtils</api_name>
+        <caller_access/>
+        <client_callable>false</client_callable>
+        <description/>
+        <mobile_callable>false</mobile_callable>
+        <name>ToonParserUtils</name>
+        <sandbox_callable>false</sandbox_callable>
+        <script><![CDATA[/**
+ * @file ToonParserUtils – Core parsing utilities for Toon JSON decoder
+ * @requires ToonConstants
+ * @requires ToonTokenUtils
+ * @requires ToonStringUtils
+ */
+
+/**
+ * ToonParserUtils
+ * @global
+ * @type {Object}
+ */
+var ToonParserUtils = (function () {
+    'use strict';
+
+    // Dependencies
+    var C = ToonConstants;
+    var T = ToonTokenUtils;
+    var S = ToonStringUtils;
+
+    // #region Array header parsing
+
+    /**
+     * Parses an array header line (e.g., `users[5]:`, `items[#10|]: {name, age}`)
+     *
+     * @param {string} content - Full line content
+     * @param {string} defaultDelimiter - Default field delimiter (e.g., ',')
+     * @returns {{header: Object, inlineValues?: string}|undefined}
+     * @returns {Object} header.key - Optional key before bracket
+     * @returns {number} header.length - Array length
+     * @returns {string} header.delimiter - Detected delimiter
+     * @returns {string[]} [header.fields] - Optional field names
+     * @returns {boolean} header.hasLengthMarker - true if `#` was used
+     * @returns {string} [inlineValues] - Values after colon (if any)
+     */
+    function parseArrayHeaderLine(content, defaultDelimiter) {
+        // Don't match if line starts with quote (quoted key, not array)
+        if (content.trimStart().indexOf(C.DOUBLE_QUOTE) === 0) {
+            return;
+        }
+
+        var bracketStart = content.indexOf(C.OPEN_BRACKET);
+        if (bracketStart === -1) return;
+
+        var bracketEnd = content.indexOf(C.CLOSE_BRACKET, bracketStart);
+        if (bracketEnd === -1) return;
+
+        // Find colon after bracket and optional braces
+        var braceStart = content.indexOf(C.OPEN_BRACE, bracketEnd);
+        var braceEnd = bracketEnd + 1;
+        if (braceStart !== -1 && braceStart < content.indexOf(C.COLON, bracketEnd)) {
+            var foundBraceEnd = content.indexOf(C.CLOSE_BRACE, braceStart);
+            if (foundBraceEnd !== -1) {
+                braceEnd = foundBraceEnd + 1;
+            }
+        }
+
+        var colonIndex = content.indexOf(C.COLON, Math.max(bracketEnd, braceEnd));
+        if (colonIndex === -1) return;
+
+        var key = bracketStart > 0 ? content.slice(0, bracketStart).trim() : undefined;
+        var afterColon = content.slice(colonIndex + 1).trim();
+        var bracketContent = content.slice(bracketStart + 1, bracketEnd);
+
+        var parsedBracket;
+        try {
+            parsedBracket = parseBracketSegment(bracketContent, defaultDelimiter);
+        } catch (e) {
+            return;
+        }
+
+        var length = parsedBracket.length;
+        var delimiter = parsedBracket.delimiter;
+        var hasLengthMarker = parsedBracket.hasLengthMarker;
+
+        var fields;
+        if (braceStart !== -1 && braceStart < colonIndex) {
+            var foundBraceEnd = content.indexOf(C.CLOSE_BRACE, braceStart);
+            if (foundBraceEnd !== -1 && foundBraceEnd < colonIndex) {
+                var fieldsContent = content.slice(braceStart + 1, foundBraceEnd);
+                fields = parseDelimitedValues(fieldsContent, delimiter)
+                    .map(function (f) { return parseStringLiteral(f.trim()); });
+            }
+        }
+
+        return {
+            header: {
+                key: key,
+                length: length,
+                delimiter: delimiter,
+                fields: fields,
+                hasLengthMarker: hasLengthMarker
+            },
+            inlineValues: afterColon || undefined
+        };
+    }
+
+    /**
+     * Parses the `[N]` or `[#N|]` bracket segment
+     *
+     * @param {string} seg - Content inside brackets
+     * @param {string} defaultDelimiter - Fallback delimiter
+     * @returns {{length: number, delimiter: string, hasLengthMarker: boolean}}
+     * @throws {Error} If length is not a valid integer
+     */
+    function parseBracketSegment(seg, defaultDelimiter) {
+        var hasLengthMarker = false;
+        var content = seg;
+
+        if (content.indexOf(C.HASH) === 0) {
+            hasLengthMarker = true;
+            content = content.slice(1);
+        }
+
+        var delimiter = defaultDelimiter;
+        if (content.endsWith(C.TAB)) {
+            delimiter = C.DELIMITERS.tab;
+            content = content.slice(0, -1);
+        } else if (content.endsWith(C.PIPE)) {
+            delimiter = C.DELIMITERS.pipe;
+            content = content.slice(0, -1);
+        }
+
+        var length = parseInt(content, 10);
+        if (isNaN(length)) {
+            throw new Error('Invalid array length: ' + seg);
+        }
+
+        return { length: length, delimiter: delimiter, hasLengthMarker: hasLengthMarker };
+    }
+
+    // #endregion
+
+    // #region Delimited value parsing
+
+    /**
+     * Splits a string by delimiter, respecting quoted sections and escapes.
+     *
+     * @param {string} input - Input string
+     * @param {string} delimiter - Delimiter char (e.g., ',', '\t')
+     * @returns {string[]} Array of field values (trimmed)
+     */
+    function parseDelimitedValues(input, delimiter) {
+        var values = [];
+        var current = '';
+        var inQuotes = false;
+        var i = 0;
+
+        while (i < input.length) {
+            var char = input[i];
+
+            if (char === C.BACKSLASH && i + 1 < input.length && inQuotes) {
+                current += char + input[i + 1];
+                i += 2;
+                continue;
+            }
+
+            if (char === C.DOUBLE_QUOTE) {
+                inQuotes = !inQuotes;
+                current += char;
+                i++;
+                continue;
+            }
+
+            if (char === delimiter && !inQuotes) {
+                values.push(current.trim());
+                current = '';
+                i++;
+                continue;
+            }
+
+            current += char;
+            i++;
+        }
+
+        if (current !== '' || values.length > 0) {
+            values.push(current.trim());
+        }
+
+        return values;
+    }
+
+    /**
+     * Maps string tokens to JSON primitives (string, number, boolean, null)
+     *
+     * @param {string[]} values - Array of string tokens
+     * @returns {Array<string|number|boolean|null>} Parsed primitives
+     */
+    function mapRowValuesToPrimitives(values) {
+        return values.map(parsePrimitiveToken);
+    }
+
+    // #endregion
+
+    // #region Primitive and key parsing
+
+    /**
+     * Parses a single token into a JSON primitive
+     *
+     * @param {string} token - Raw token
+     * @returns {string|number|boolean|null} Parsed value
+     */
+    function parsePrimitiveToken(token) {
+        var trimmed = token.trim();
+        if (!trimmed) return '';
+
+        if (trimmed.indexOf(C.DOUBLE_QUOTE) === 0) {
+            return parseStringLiteral(trimmed);
+        }
+
+        if (T.isBooleanOrNullLiteral(trimmed)) {
+            if (trimmed === C.TRUE_LITERAL) return true;
+            if (trimmed === C.FALSE_LITERAL) return false;
+            if (trimmed === C.NULL_LITERAL) return null;
+        }
+
+        if (T.isNumericLiteral(trimmed)) {
+            return parseFloat(trimmed);
+        }
+
+        return trimmed;
+    }
+
+    /**
+     * Parses a quoted or unquoted string literal
+     *
+     * @param {string} token - Full token (may include quotes)
+     * @returns {string} Unescaped string
+     * @throws {Error} If unterminated or has trailing content
+     */
+    function parseStringLiteral(token) {
+        var trimmed = token.trim();
+        if (trimmed.indexOf(C.DOUBLE_QUOTE) === 0) {
+            var closingQuoteIndex = S.findClosingQuote(trimmed, 0);
+            if (closingQuoteIndex === -1) {
+                throw new Error('Unterminated string: missing closing quote');
+            }
+            if (closingQuoteIndex !== trimmed.length - 1) {
+                throw new Error('Unexpected characters after closing quote');
+            }
+            var content = trimmed.slice(1, closingQuoteIndex);
+            return S.unescapeString(content);
+        }
+        return trimmed;
+    }
+
+    /**
+     * Parses an unquoted key up to the colon
+     *
+     * @param {string} content - Full line
+     * @param {number} start - Start index
+     * @returns {{key: string, end: number}}
+     * @throws {Error} If no colon found
+     */
+    function parseUnquotedKey(content, start) {
+        var end = start;
+        while (end < content.length && content[end] !== C.COLON) {
+            end++;
+        }
+        if (end >= content.length || content[end] !== C.COLON) {
+            throw new Error('Missing colon after key');
+        }
+        var key = content.slice(start, end).trim();
+        end++; // skip colon
+        return { key: key, end: end };
+    }
+
+    /**
+     * Parses a quoted key up to the colon
+     *
+     * @param {string} content - Full line
+     * @param {number} start - Start index (at opening quote)
+     * @returns {{key: string, end: number}}
+     * @throws {Error} If unterminated or no colon
+     */
+    function parseQuotedKey(content, start) {
+        var closingQuoteIndex = S.findClosingQuote(content, start);
+        if (closingQuoteIndex === -1) {
+            throw new Error('Unterminated quoted key');
+        }
+        var keyContent = content.slice(start + 1, closingQuoteIndex);
+        var key = S.unescapeString(keyContent);
+        var end = closingQuoteIndex + 1;
+        if (end >= content.length || content[end] !== C.COLON) {
+            throw new Error('Missing colon after key');
+        }
+        end++;
+        return { key: key, end: end };
+    }
+
+    /**
+     * Parses either quoted or unquoted key
+     *
+     * @param {string} content - Full line
+     * @param {number} start - Start index
+     * @returns {{key: string, end: number}}
+     */
+    function parseKeyToken(content, start) {
+        if (content[start] === C.DOUBLE_QUOTE) {
+            return parseQuotedKey(content, start);
+        } else {
+            return parseUnquotedKey(content, start);
+        }
+    }
+
+    // #endregion
+
+    // #region Array content detection helpers
+
+    /**
+     * Detects if a line after `- ` is an array header
+     *
+     * @param {string} content - Line content
+     * @returns {boolean}
+     */
+    function isArrayHeaderAfterHyphen(content) {
+        return content.trim().indexOf(C.OPEN_BRACKET) === 0 &&
+               S.findUnquotedChar(content, C.COLON) !== -1;
+    }
+
+    /**
+     * Detects if a line after `- ` is an object field
+     *
+     * @param {string} content - Line content
+     * @returns {boolean}
+     */
+    function isObjectFirstFieldAfterHyphen(content) {
+        return S.findUnquotedChar(content, C.COLON) !== -1;
+    }
+
+    // #endregion
+
+    // --------------------------------------------------------------------
+    // Public API
+    // --------------------------------------------------------------------
+    return {
+        parseArrayHeaderLine: parseArrayHeaderLine,
+        parseBracketSegment: parseBracketSegment,
+        parseDelimitedValues: parseDelimitedValues,
+        mapRowValuesToPrimitives: mapRowValuesToPrimitives,
+        parsePrimitiveToken: parsePrimitiveToken,
+        parseStringLiteral: parseStringLiteral,
+        parseUnquotedKey: parseUnquotedKey,
+        parseQuotedKey: parseQuotedKey,
+        parseKeyToken: parseKeyToken,
+        isArrayHeaderAfterHyphen: isArrayHeaderAfterHyphen,
+        isObjectFirstFieldAfterHyphen: isObjectFirstFieldAfterHyphen
+    };
+})();]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:14:06</sys_created_on>
+        <sys_id>b54a470783b0329046cfe4d0deaad3c2</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>ToonParserUtils</sys_name>
+        <sys_package display_value="ServiceNow TOON" source="f2354f4b8370329046cfe4d0deaad375">f2354f4b8370329046cfe4d0deaad375</sys_package>
+        <sys_policy/>
+        <sys_scope display_value="ServiceNow TOON">f2354f4b8370329046cfe4d0deaad375</sys_scope>
+        <sys_update_name>sys_script_include_b54a470783b0329046cfe4d0deaad3c2</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:14:06</sys_updated_on>
+    </sys_script_include>
+    <sys_es_latest_script action="INSERT_OR_UPDATE">
+        <id>b54a470783b0329046cfe4d0deaad3c2</id>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2025-10-29 22:14:06</sys_created_on>
+        <sys_id>365a470783b0329046cfe4d0deaad3cb</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2025-10-29 22:14:06</sys_updated_on>
+        <table>sys_script_include</table>
+        <use_es_latest>true</use_es_latest>
+    </sys_es_latest_script>
+</record_update>
