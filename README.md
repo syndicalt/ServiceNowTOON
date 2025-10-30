@@ -317,6 +317,3 @@ if (gs.getSession().getClientData('toon_debug') === 'true') {
 - **Fully integrated** with client & server
 
 ---
-
-*Built for ServiceNow by xAI Grok — 2025*  
-*License: ServiceNow Internal Use*
